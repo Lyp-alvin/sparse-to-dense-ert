@@ -22,7 +22,7 @@ The six files are also available from [Release v1.0.0](https://github.com/Lyp-al
 
 ## Example samples
 
-`data_chaofen/` contains the four validation cases shown in the manuscript: **1981, 1977, 1893, 1886**. The original MAT arrays use a 256 × 1024 grid in the log₁₀ resistivity domain. `WA` denotes the conventional Wenner-alpha inversion image. `rhoa` denotes the apparent-resistivity pseudosection. The mask arrays mark valid pseudosection entries.
+`data_chaofen/` contains the four validation cases **1981, 1977, 1893, and 1886** shown in the manuscript. The original MAT arrays use a 256 × 1024 grid in the log₁₀ resistivity domain. `WA` denotes the conventional Wenner-alpha inversion image. `rhoa` denotes the apparent-resistivity pseudosection. The mask arrays mark valid pseudosection entries.
 
 | Directory | Filename pattern | MAT keys |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ The six files are also available from [Release v1.0.0](https://github.com/Lyp-al
 | `val_rhoa_sparse` | `rhoa_2d_<id>.mat` | `rhoa_sparse`, `mask_sparse` |
 | `val_rhoa_dense` | `rhoa_2d_<id>.mat` | `rhoa_dense`, `mask_dense` |
 
-Run all four methods on a sample with the following Python code. Set `sample_id` to select another case.
+Run all four methods on the bundled cases with the following Python code. It uses the reference inference batch size of four and enables cuDNN TF32 on CUDA. Each output tensor has shape `(4, 1, 256, 1024)` in the order given by `case_ids`.
 
 ```python
 from pathlib import Path
@@ -43,12 +43,14 @@ from Dataset import Stage1WARhoaToWADataset
 from UNetPP import UNetPP
 from pipeline_utils import load_checkpoint
 
-sample_id = 1981
+case_ids = (1981, 1977, 1893, 1886)
 dataset = Stage1WARhoaToWADataset("data_chaofen", "val")
-sample = dataset[dataset.ids.index(sample_id)]
+samples = [dataset[dataset.ids.index(case_id)] for case_id in case_ids]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-wa = sample["WA_sparse"].unsqueeze(0).to(device)
-rhoa = sample["rhoa_sparse"].unsqueeze(0).to(device)
+if device.type == "cuda":
+    torch.backends.cudnn.allow_tf32 = True
+wa = torch.stack([sample["WA_sparse"] for sample in samples]).to(device)
+rhoa = torch.stack([sample["rhoa_sparse"] for sample in samples]).to(device)
 
 
 @torch.inference_mode()
